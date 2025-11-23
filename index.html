@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"> 
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Genesis Timeline Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: { 850: '#151e2e', 900: '#0f172a' }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-out forwards',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'scale(0.95)' },
+                            '100%': { opacity: '1', transform: 'scale(1)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
+        
+        /* Prevent accidental horizontal zoom/scroll on body */
+        body { overflow-x: hidden; width: 100vw; background-color: #0f172a; }
+
+        /* Hide Scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Sticky Text Logic */
+        .sticky-text-container {
+            position: sticky;
+            left: 0;
+            display: inline-flex;
+            align-items: center;
+            height: 100%;
+            padding-left: 12px;
+            padding-right: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            max-width: 100%; 
+            z-index: 10;
+        }
+
+        .grid-line {
+            position: absolute;
+            top: 0; bottom: 0;
+            border-left: 1px dashed rgba(148, 163, 184, 0.15);
+            pointer-events: none;
+        }
+
+        /* --- Tutorial Stacking Logic --- */
+        #tutorial-backdrop { z-index: 200 !important; }
+        
+        .tutorial-active-element {
+            position: relative;
+            z-index: 201 !important;
+            box-shadow: 0 0 0 4px #3b82f6; 
+            border-radius: 8px;
+            background-color: inherit;
+            pointer-events: auto;
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .header-elevated { z-index: 201 !important; position: relative; }
+        
+        /* Tooltip MUST be higher than the elevated modal (205) */
+        #tutorial-tooltip { z-index: 210 !important; }
+
+        /* Modal elevated above tutorial backdrop if open during tutorial */
+        .modal-during-tutorial { z-index: 205 !important; }
+
+        /* Utility for centering */
+        .tutorial-center-fixed {
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+        }
+
+        .tooltip-arrow {
+            position: absolute;
+            width: 0; height: 0; 
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            /* Default transition for smooth movement */
+            transition: left 0.3s ease; 
+        }
+        .tooltip-arrow.top { top: -8px; border-bottom: 8px solid white; }
+        .tooltip-arrow.bottom { bottom: -8px; border-top: 8px solid white; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 h-screen flex flex-col transition-colors duration-200 overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-slate-800/90 backdrop-blur border-b border-slate-700 z-50 shrink-0 shadow-sm relative transition-all" id="main-header">
+        <div class="px-4 py-3 flex justify-between items-center gap-2">
+            <!-- Title Section -->
+            <div id="header-title" class="min-w-0 flex-1">
+                <h1 class="text-lg font-extrabold tracking-tight leading-none truncate text-white">Genesis Timeline</h1>
+                <p id="header-subtitle" class="text-[10px] font-mono text-slate-400 mt-0.5 truncate transition-all">Adam to Joseph • Anno Mundi</p>
+            </div>
+            
+            <!-- Buttons -->
+            <div class="flex items-center gap-1 shrink-0">
+                <button onclick="restartTutorial()" title="Restart Tutorial" class="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-full hover:bg-slate-700/50">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </button>
+                
+                <button id="calendar-btn" onclick="toggleCalendar()" title="Toggle BC/AM" class="p-2 text-slate-400 hover:text-amber-400 transition-colors rounded-full hover:bg-slate-700/50 relative">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <!-- Small Badge indicating current mode -->
+                    <span id="calendar-badge" class="absolute -top-1 -right-1 text-[8px] bg-slate-700 text-white px-1 rounded border border-slate-600 font-bold">AM</span>
+                </button>
+
+                <button id="stats-btn" onclick="toggleStats()" class="p-2 bg-blue-900/30 rounded-full text-blue-400 transition-colors hover:bg-blue-900/50">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" /></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Controls Row -->
+        <div class="px-4 pb-3 pt-1 flex gap-4 overflow-x-auto no-scrollbar items-center border-t border-slate-700/50 mt-1" id="controls-row">
+            <div class="flex gap-2 px-1 w-full" id="filter-group">
+                <button onclick="filterGroup('all')" class="filter-chip active bg-white text-slate-900 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all shadow-sm">All</button>
+                <button onclick="filterGroup('Gen 5')" class="filter-chip bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all">Pre-Flood</button>
+                <button onclick="filterGroup('Gen 11')" class="filter-chip bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all">Post-Flood</button>
+                <button onclick="filterGroup('Patriarchs')" class="filter-chip bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all">Patriarchs</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Viewport -->
+    <div id="timeline-container" class="flex-1 overflow-auto relative bg-slate-900 cursor-grab active:cursor-grabbing">
+        <div id="timeline-content" class="relative min-h-full pb-32 pt-2">
+            
+            <!-- Sticky Ruler -->
+            <div id="ruler" class="sticky top-0 h-8 bg-slate-900/95 backdrop-blur-sm z-40 border-b border-slate-800 pointer-events-none flex items-end shadow-sm">
+                <!-- JS Generated -->
+            </div>
+
+            <!-- Sticky Events Header -->
+            <div id="event-bar" class="sticky top-8 h-12 bg-slate-900/90 backdrop-blur-sm z-30 pointer-events-none border-b border-slate-800/50">
+                <!-- JS Generated Labels -->
+            </div>
+
+            <!-- Vertical Grid Lines -->
+            <div id="grid" class="absolute inset-0 z-0">
+                <!-- JS Generated -->
+            </div>
+
+            <!-- Event Lines -->
+            <div id="events-lines" class="absolute inset-0 z-10 pointer-events-none">
+                <!-- JS Generated -->
+            </div>
+
+            <!-- Bars -->
+            <div id="bars" class="relative z-20 flex flex-col gap-3 pt-4 pl-4 pr-10">
+                <!-- JS Generated -->
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div id="modal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity opacity-0" id="modal-backdrop" onclick="closeModal()"></div>
+        
+        <div class="absolute bottom-0 left-0 right-0 bg-slate-850 rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 max-h-[85vh] overflow-y-auto flex flex-col" id="modal-card">
+            
+            <!-- Modal Header -->
+            <div class="sticky top-0 bg-slate-850 z-10 flex justify-between items-center p-4 border-b border-slate-700">
+                <div class="w-12 h-1 bg-slate-600 rounded-full mx-auto absolute left-0 right-0 top-3"></div>
+                <div class="flex-1"></div> 
+                <button onclick="closeModal()" class="p-2 bg-slate-700 rounded-full text-slate-500 hover:text-white transition-colors z-20">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+
+            <div class="p-6 pt-2 space-y-6">
+                <!-- Header Info -->
+                <div>
+                    <span id="modal-group" class="text-[10px] font-bold uppercase tracking-widest bg-blue-900/40 text-blue-300 px-2 py-1 rounded">Group</span>
+                    <h2 id="modal-name" class="text-3xl font-extrabold text-white mt-3">Name</h2>
+                    <div class="mt-2 flex items-center gap-2 text-slate-400">
+                        <span class="text-xs font-bold uppercase tracking-wide bg-slate-800 px-2 py-1 rounded">Source</span>
+                        <span id="modal-verse-ref" class="text-sm font-mono text-blue-400"></span>
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-3 gap-2 text-center bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-slate-400">Born</div>
+                        <div id="modal-born" class="text-lg font-mono font-bold text-slate-200">0</div>
+                        <div id="modal-born-suffix" class="text-[10px] text-slate-400">AM</div>
+                    </div>
+                    <div class="border-l border-r border-slate-600">
+                        <div class="text-[10px] uppercase font-bold text-slate-400">Age</div>
+                        <div id="modal-age" class="text-2xl font-mono font-bold text-blue-400">0</div>
+                        <div class="text-[10px] text-slate-400">Years</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-slate-400">Died</div>
+                        <div id="modal-died" class="text-lg font-mono font-bold text-slate-200">0</div>
+                        <div id="modal-died-suffix" class="text-[10px] text-slate-400">AM</div>
+                    </div>
+                </div>
+
+                <!-- Scripture Section -->
+                <div class="bg-blue-900/10 p-4 rounded-xl border border-blue-900/30">
+                     <h4 class="text-[10px] uppercase font-bold text-blue-400 mb-2 flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                        Scripture Reference
+                     </h4>
+                     <p id="modal-verse-text" class="text-slate-300 italic font-serif leading-relaxed text-sm"></p>
+                </div>
+
+                <!-- Description Section -->
+                <div class="bg-amber-900/10 p-4 rounded-xl border border-amber-900/20">
+                    <h4 class="text-[10px] uppercase font-bold text-amber-500 mb-2">Details</h4>
+                    <p id="modal-desc" class="text-slate-300 leading-relaxed text-sm"></p>
+                </div>
+            </div>
+            <div class="h-6"></div> 
+        </div>
+    </div>
+
+    <!-- Enhanced Statistics Modal -->
+    <div id="stats-modal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onclick="toggleStats()"></div>
+        <div class="bg-slate-800 w-full max-w-sm rounded-2xl shadow-xl p-6 relative z-10 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold text-white mb-6">Demographics</h3>
+            
+            <!-- Pre-Flood Stats -->
+            <div class="mb-6">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-amber-500 mb-3 border-b border-slate-700 pb-1">Pre-Flood (Gen 5)</h4>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg">
+                        <span class="text-xs text-slate-400">Avg Lifespan</span>
+                        <span class="font-bold text-white font-mono" id="stat-pre-life">0</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg">
+                        <span class="text-xs text-slate-400">Avg Age at First Child</span>
+                        <span class="font-bold text-white font-mono" id="stat-pre-child">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Post-Flood Stats -->
+            <div class="mb-6">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-500 mb-3 border-b border-slate-700 pb-1">Post-Flood (Gen 11)</h4>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg">
+                        <span class="text-xs text-slate-400">Avg Lifespan</span>
+                        <span class="font-bold text-white font-mono" id="stat-post-life">0</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg">
+                        <span class="text-xs text-slate-400">Avg Age at First Child</span>
+                        <span class="font-bold text-white font-mono" id="stat-post-child">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- General Stats -->
+            <div>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-blue-500 mb-3 border-b border-slate-700 pb-1">General</h4>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg">
+                        <span class="text-xs text-slate-400">Longest Lived</span>
+                        <span class="font-bold text-white text-sm">Methuselah (969)</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg">
+                        <span class="text-xs text-slate-400">Total Entries</span>
+                        <span id="stat-count" class="font-bold text-white font-mono">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="toggleStats()" class="mt-6 w-full py-3 bg-slate-700 text-white rounded-xl font-bold hover:bg-slate-600 transition-colors">Close</button>
+        </div>
+    </div>
+
+    <!-- Tutorial Backdrop -->
+    <div id="tutorial-backdrop" class="fixed inset-0 bg-black/70 backdrop-blur-[2px] hidden transition-opacity duration-500 pointer-events-auto"></div>
+    <!-- Tutorial Tooltip Container -->
+    <div id="tutorial-tooltip-container"></div>
+
+<script>
+    // --- Data Configuration ---
+    let ZOOM = 1.5;
+    const MAX_YEAR = 2500;
+    
+    // Calendar State
+    let useBC = false;
+    const AM_OFFSET = 4004; // Ussher Chronology: Creation at 4004 BC
+
+    const patriarchs = [
+        { n: 'Adam', s: 0, e: 930, g: 'Gen 5', ref: 'Gen 5:5', v: 'And all the days that Adam lived were nine hundred and thirty years: and he died.', desc: 'The first man. Created by God from the dust of the ground. Father of the human race.' },
+        { n: 'Seth', s: 130, e: 1042, g: 'Gen 5', ref: 'Gen 5:8', v: 'And all the days of Seth were nine hundred and twelve years: and he died.', desc: 'Born to Adam at age 130. Eve said God had granted her another child in place of Abel.' },
+        { n: 'Enosh', s: 235, e: 1140, g: 'Gen 5', ref: 'Gen 5:11', v: 'And all the days of Enosh were nine hundred and five years: and he died.', desc: 'At that time people began to call on the name of the Lord.' },
+        { n: 'Kenan', s: 325, e: 1235, g: 'Gen 5', ref: 'Gen 5:14', v: 'And all the days of Kenan were nine hundred and ten years: and he died.', desc: '' },
+        { n: 'Mahalalel', s: 395, e: 1290, g: 'Gen 5', ref: 'Gen 5:17', v: 'And all the days of Mahalaleel were eight hundred ninety and five years: and he died.', desc: '' },
+        { n: 'Jared', s: 460, e: 1422, g: 'Gen 5', ref: 'Gen 5:20', v: 'And all the days of Jared were nine hundred sixty and two years: and he died.', desc: '' },
+        { n: 'Enoch', s: 622, e: 987, g: 'Gen 5', ref: 'Gen 5:23-24', v: 'And all the days of Enoch were three hundred sixty and five years: And Enoch walked with God: and he was not; for God took him.', desc: 'Walked faithfully with God; then he was no more, because God took him away (Translation without death).' },
+        { n: 'Methuselah', s: 687, e: 1656, g: 'Gen 5', ref: 'Gen 5:27', v: 'And all the days of Methuselah were nine hundred sixty and nine years: and he died.', desc: 'Lived 969 years—the oldest person in the Bible. Died the year of the Flood.' },
+        { n: 'Lamech', s: 874, e: 1651, g: 'Gen 5', ref: 'Gen 5:31', v: 'And all the days of Lamech were seven hundred seventy and seven years: and he died.', desc: 'Father of Noah. Died 5 years before the Flood. Prophesied rest through his son.' },
+        { n: 'Noah', s: 1056, e: 2006, g: 'Gen 5', ref: 'Gen 9:29', v: 'And all the days of Noah were nine hundred and fifty years: and he died.', desc: 'A just man. Built the Ark. The Flood occurred in his 600th year (1656 AM).' },
+        
+        { n: 'Shem', s: 1558, e: 2158, g: 'Gen 11', ref: 'Gen 11:10-11', v: 'Shem was an hundred years old, and begat Arphaxad two years after the flood...', desc: 'Son of Noah. Ancestor of the Semitic peoples. Lived 600 years.' },
+        { n: 'Arpachshad', s: 1658, e: 2096, g: 'Gen 11', ref: 'Gen 11:12-13', v: 'And Arphaxad lived five and thirty years, and begat Salah...', desc: 'Born 2 years after the flood.' },
+        { n: 'Shelah', s: 1693, e: 2126, g: 'Gen 11', ref: 'Gen 11:14-15', v: 'And Salah lived thirty years, and begat Eber...', desc: '' },
+        { n: 'Eber', s: 1723, e: 2187, g: 'Gen 11', ref: 'Gen 11:16-17', v: 'And Eber lived four and thirty years, and begat Peleg...', desc: 'Considered the father of the Hebrew people. Outlived Abraham.' },
+        { n: 'Peleg', s: 1757, e: 1996, g: 'Gen 11', ref: 'Gen 11:18-19', v: 'And Peleg lived thirty years, and begat Reu...', desc: 'Name means "division", for in his time the earth was divided (Tower of Babel).' },
+        { n: 'Reu', s: 1787, e: 2026, g: 'Gen 11', ref: 'Gen 11:20-21', v: 'And Reu lived two and thirty years, and begat Reu...', desc: '' },
+        { n: 'Serug', s: 1819, e: 2049, g: 'Gen 11', ref: 'Gen 11:22-23', v: 'And Serug lived thirty years, and begat Nahor...', desc: '' },
+        { n: 'Nahor', s: 1849, e: 1997, g: 'Gen 11', ref: 'Gen 11:24-25', v: 'And Nahor lived nine and twenty years, and begat Terah...', desc: 'Grandfather of Abraham.' },
+        { n: 'Terah', s: 1878, e: 2083, g: 'Gen 11', ref: 'Gen 11:32', v: 'And the days of Terah were two hundred and five years: and Terah died in Haran.', desc: 'Father of Abraham. Left Ur but settled in Haran.' },
+        
+        { n: 'Abraham', s: 2008, e: 2183, g: 'Patriarchs', ref: 'Gen 25:7', v: 'And these are the days of the years of Abraham\'s life which he lived, an hundred threescore and fifteen years.', desc: 'Father of the faithful. Received the covenant of God.' },
+        { n: 'Sarah', s: 2018, e: 2145, g: 'Patriarchs', ref: 'Gen 23:1', v: 'And Sarah was an hundred and seven and twenty years old...', desc: 'Wife of Abraham. Mother of Isaac at age 90.' },
+        { n: 'Isaac', s: 2108, e: 2288, g: 'Patriarchs', ref: 'Gen 35:28', v: 'And the days of Isaac were an hundred and fourscore years.', desc: 'Son of Promise. Married Rebekah.' },
+        { n: 'Jacob', s: 2168, e: 2315, g: 'Patriarchs', ref: 'Gen 47:28', v: 'And Jacob lived in the land of Egypt seventeen years...', desc: 'Renamed Israel. Father of the 12 tribes.' },
+        { n: 'Joseph', s: 2259, e: 2369, g: 'Patriarchs', ref: 'Gen 50:26', v: 'So Joseph died, being an hundred and ten years old...', desc: 'Vizier of Egypt. Saved his family from famine.' }
+    ];
+
+    const events = [
+        { y: 987, label: "Enoch Taken" },
+        { y: 1536, label: "Ark Construction Begins" },
+        { y: 1656, label: "The Flood" },
+        { y: 1757, label: "Tower of Babel" },
+        { y: 2083, label: "Call of Abraham" },
+        { y: 2107, label: "Sodom & Gomorrah" },
+        { y: 2298, label: "Jacob to Egypt" }
+    ];
+
+    let activeFilter = 'all';
+
+    // --- Core Logic ---
+
+    function getStyle(group) {
+        switch(group) {
+            case 'Gen 5': return 'bg-gradient-to-r from-amber-600 to-orange-700 border-amber-500 text-white';
+            case 'Gen 11': return 'bg-gradient-to-r from-emerald-600 to-teal-700 border-emerald-500 text-white';
+            case 'Patriarchs': return 'bg-gradient-to-r from-blue-600 to-indigo-700 border-blue-500 text-white';
+            default: return 'bg-slate-700 border-slate-600 text-white';
+        }
+    }
+
+    function formatYear(amYear) {
+        if(useBC) {
+            const bc = AM_OFFSET - amYear;
+            return bc + " BC";
+        }
+        return amYear;
+    }
+
+    function toggleCalendar() {
+        useBC = !useBC;
+        const badge = document.getElementById('calendar-badge');
+        const subtitle = document.getElementById('header-subtitle');
+        const calBtn = document.getElementById('calendar-btn');
+
+        if(useBC) {
+            badge.innerText = 'BC';
+            badge.classList.remove('bg-slate-700');
+            badge.classList.add('bg-amber-600');
+            calBtn.classList.add('text-amber-400');
+            subtitle.innerText = "Adam to Joseph • Before Christ";
+        } else {
+            badge.innerText = 'AM';
+            badge.classList.add('bg-slate-700');
+            badge.classList.remove('bg-amber-600');
+            calBtn.classList.remove('text-amber-400');
+            subtitle.innerText = "Adam to Joseph • Anno Mundi";
+        }
+        render();
+    }
+
+    function render() {
+        const ruler = document.getElementById('ruler');
+        const grid = document.getElementById('grid');
+        const bars = document.getElementById('bars');
+        const eventBar = document.getElementById('event-bar');
+        const eventLines = document.getElementById('events-lines');
+        
+        ruler.innerHTML = '';
+        grid.innerHTML = '';
+        bars.innerHTML = '';
+        eventBar.innerHTML = '';
+        eventLines.innerHTML = '';
+
+        const totalWidth = MAX_YEAR * ZOOM;
+        eventBar.style.width = `${totalWidth}px`;
+
+        const step = ZOOM < 0.3 ? 500 : (ZOOM < 1 ? 200 : (ZOOM < 3 ? 100 : 50));
+        
+        for(let y=0; y<=MAX_YEAR; y+=step) {
+            const left = y * ZOOM;
+            ruler.innerHTML += `<div style="position:absolute; left:${left}px;" class="text-[10px] font-mono text-slate-500 pl-1 border-l border-slate-700 h-3 flex items-end select-none whitespace-nowrap">${formatYear(y)}</div>`;
+            grid.innerHTML += `<div style="left:${left}px;" class="grid-line"></div>`;
+        }
+
+        const sortedEvents = [...events].sort((a, b) => a.y - b.y);
+        const eventLanes = []; 
+
+        sortedEvents.forEach(ev => {
+            const left = ev.y * ZOOM;
+            const labelWidth = (ev.label.length * 7) + 20;
+            
+            let laneIndex = 0;
+            while (true) {
+                if (!eventLanes[laneIndex] || eventLanes[laneIndex] < left - 10) {
+                    eventLanes[laneIndex] = left + labelWidth; 
+                    break;
+                }
+                laneIndex++;
+            }
+            
+            const topOffset = 4 + (laneIndex * 18); 
+            eventLines.innerHTML += `<div style="left:${left}px;" class="absolute top-0 bottom-0 border-l border-dashed border-red-500/40 pointer-events-none"></div>`;
+
+            eventBar.innerHTML += `
+                <div style="position:absolute; left:${left}px; top:${topOffset}px; z-index:35;" class="flex items-center group pointer-events-auto">
+                     <div class="w-2 h-2 rounded-full bg-red-500 -ml-[4px] ring-2 ring-slate-900"></div>
+                     <span class="ml-1 bg-red-900/50 text-red-200 text-[10px] font-bold uppercase px-1.5 rounded whitespace-nowrap border border-red-800 shadow-sm">
+                        ${ev.label}
+                    </span>
+                </div>
+            `;
+        });
+
+        const filtered = patriarchs.filter(p => activeFilter === 'all' || p.g === activeFilter);
+        document.getElementById('stat-count').innerText = filtered.length;
+        
+        calculateStats();
+
+        // Calculate approximate text width constant
+        const CHAR_WIDTH_NAME = 9; 
+        const PADDING_OFFSET = 20;
+
+        filtered.forEach(p => {
+            const left = p.s * ZOOM;
+            const width = (p.e - p.s) * ZOOM;
+            const age = p.e - p.s;
+            
+            // Logic for Label Display
+            const nameWidth = (p.n.length * CHAR_WIDTH_NAME) + PADDING_OFFSET;
+            // Approximate details width depends on formatYear length, but roughly:
+            const detailsText = `Born:${formatYear(p.s)} - Died:${formatYear(p.e)} • Age:${age}`;
+            const fullDetailsWidth = nameWidth + (detailsText.length * 6.5); 
+
+            let labelHtml = '';
+            let outsideLabelHtml = '';
+
+            if (width > fullDetailsWidth) {
+                // CASE 1: Wide bar. Show Name + Details inside.
+                labelHtml = `<div class="sticky-text-container"><span class="font-bold text-sm drop-shadow-md mr-2 text-white">${p.n}</span> <span class="text-[11px] font-mono opacity-80 drop-shadow-sm font-semibold text-white">${detailsText}</span></div>`;
+            } else if (width > nameWidth) {
+                // CASE 2: Medium bar. Show Name Only inside.
+                labelHtml = `<div class="sticky-text-container"><span class="font-bold text-sm drop-shadow-md text-white">${p.n}</span></div>`;
+            } else {
+                // CASE 3: Narrow bar. Show Name OUTSIDE (to the right).
+                outsideLabelHtml = `<div style="position:absolute; left:${left + width + 8}px; top:11px;" class="text-xs font-bold text-slate-400 whitespace-nowrap pointer-events-none z-0 tracking-wide">${p.n}</div>`;
+            }
+
+            bars.innerHTML += `
+                <div class="relative w-full h-11 timeline-bar-wrapper">
+                    ${outsideLabelHtml}
+                    <div class="absolute top-1 h-9 rounded-md border-b-2 shadow-sm overflow-hidden cursor-pointer hover:brightness-110 active:scale-[0.99] transition-all ${getStyle(p.g)} z-10"
+                         style="left:${left}px; width:${Math.max(width, 2)}px;"
+                         onclick="openModal('${p.n}')">
+                         ${labelHtml}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    // --- Statistics Calculation ---
+    function calculateStats() {
+        // Gen 5 (Pre-Flood)
+        const gen5 = patriarchs.filter(p => p.g === 'Gen 5');
+        const gen5Lifespan = gen5.reduce((sum, p) => sum + (p.e - p.s), 0) / gen5.length;
+        
+        // Gen 5 First Child
+        let gen5ChildSum = 0;
+        let gen5ChildCount = 0;
+        for(let i=0; i<gen5.length-1; i++) {
+             if(gen5[i+1].s > gen5[i].s) {
+                 gen5ChildSum += (gen5[i+1].s - gen5[i].s);
+                 gen5ChildCount++;
+             }
+        }
+        
+        // Gen 11 (Post-Flood)
+        const gen11 = patriarchs.filter(p => p.g === 'Gen 11');
+        const gen11Lifespan = gen11.reduce((sum, p) => sum + (p.e - p.s), 0) / gen11.length;
+        
+        let gen11ChildSum = 0;
+        let gen11ChildCount = 0;
+        for(let i=0; i<gen11.length-1; i++) {
+             if(gen11[i+1].s > gen11[i].s) {
+                 gen11ChildSum += (gen11[i+1].s - gen11[i].s);
+                 gen11ChildCount++;
+             }
+        }
+
+        document.getElementById('stat-pre-life').innerText = Math.round(gen5Lifespan);
+        document.getElementById('stat-pre-child').innerText = Math.round(gen5ChildSum / gen5ChildCount);
+        
+        document.getElementById('stat-post-life').innerText = Math.round(gen11Lifespan);
+        document.getElementById('stat-post-child').innerText = Math.round(gen11ChildSum / gen11ChildCount);
+    }
+
+
+    // --- Interaction ---
+
+    function filterGroup(group) {
+        activeFilter = group;
+        document.querySelectorAll('.filter-chip').forEach(btn => {
+            if(btn.innerText.includes(group === 'all' ? 'All' : group.replace('Gen ',''))) {
+                btn.className = "filter-chip active bg-white text-slate-900 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all shadow-sm";
+            } else {
+                btn.className = "filter-chip bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap transition-all";
+            }
+        });
+        render();
+    }
+
+    // Modal
+    const modal = document.getElementById('modal');
+    const modalBackdrop = document.getElementById('modal-backdrop');
+    const modalCard = document.getElementById('modal-card');
+
+    function openModal(name) {
+        const p = patriarchs.find(x => x.n === name);
+        if(!p) return;
+
+        document.getElementById('modal-name').innerText = p.n;
+        document.getElementById('modal-group').innerText = p.g;
+        document.getElementById('modal-verse-ref').innerText = p.ref;
+        
+        document.getElementById('modal-born').innerText = formatYear(p.s);
+        document.getElementById('modal-born-suffix').innerText = useBC ? '' : 'AM';
+        
+        document.getElementById('modal-died').innerText = formatYear(p.e);
+        document.getElementById('modal-died-suffix').innerText = useBC ? '' : 'AM';
+
+        document.getElementById('modal-age').innerText = p.e - p.s;
+        document.getElementById('modal-verse-text').innerText = '"' + p.v + '"';
+
+        const descEl = document.getElementById('modal-desc');
+        if(p.desc && p.desc.trim() !== '') {
+            descEl.innerText = p.desc;
+            descEl.classList.remove('italic');
+        } else {
+            descEl.innerText = p.v;
+            descEl.classList.add('italic');
+        }
+
+        // Check if tutorial is active to adjust z-index
+        if(!document.getElementById('tutorial-backdrop').classList.contains('hidden')) {
+            modal.classList.add('modal-during-tutorial');
+        } else {
+            modal.classList.remove('modal-during-tutorial');
+        }
+
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modalBackdrop.classList.remove('opacity-0');
+            modalCard.classList.remove('translate-y-full');
+        }, 10);
+    }
+
+    function closeModal() {
+        modalBackdrop.classList.add('opacity-0');
+        modalCard.classList.add('translate-y-full');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300);
+    }
+
+    // Stats
+    function toggleStats() {
+        const s = document.getElementById('stats-modal');
+        s.classList.toggle('hidden');
+        s.classList.toggle('flex');
+    }
+
+    // --- Enhanced Zoom Logic ---
+    const timelineContainer = document.getElementById('timeline-container');
+    let initialPinchDistance = null;
+    let initialZoom = null;
+    let initialScrollLeft = 0;
+    let pinchCenterTime = 0;
+
+    // Get the time (in years) at the center of the current viewport
+    function getCenterTime() {
+        const centerPixel = timelineContainer.scrollLeft + (timelineContainer.clientWidth / 2);
+        return centerPixel / ZOOM;
+    }
+
+    // Set scrollLeft so that 'time' is at the center of the viewport
+    function scrollToTime(time) {
+        const centerPixel = time * ZOOM;
+        timelineContainer.scrollLeft = centerPixel - (timelineContainer.clientWidth / 2);
+    }
+
+    // Mobile: Pinch to Zoom
+    timelineContainer.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            initialPinchDistance = Math.hypot(
+                e.touches[0].pageX - e.touches[1].pageX,
+                e.touches[0].pageY - e.touches[1].pageY
+            );
+            initialZoom = ZOOM;
+            pinchCenterTime = getCenterTime(); // Capture where we are looking
+        }
+    }, { passive: false });
+
+    timelineContainer.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2 && initialPinchDistance !== null) {
+            e.preventDefault();
+            const currentDistance = Math.hypot(
+                e.touches[0].pageX - e.touches[1].pageX,
+                e.touches[0].pageY - e.touches[1].pageY
+            );
+            
+            const ratio = currentDistance / initialPinchDistance;
+            const newZoom = Math.min(Math.max(initialZoom * ratio, 0.1), 5);
+            
+            // Optimize: Only re-render if change is significant
+            if (Math.abs(newZoom - ZOOM) > 0.01) {
+                ZOOM = newZoom;
+                render(); // Re-draw layout with new zoom
+                scrollToTime(pinchCenterTime); // Keep our focal point centered
+            }
+        }
+    }, { passive: false });
+
+    timelineContainer.addEventListener('touchend', () => {
+        initialPinchDistance = null;
+    });
+
+    // Desktop: Mouse Wheel Zoom
+    timelineContainer.addEventListener('wheel', (e) => {
+        if (e.ctrlKey || Math.abs(e.deltaY) > 0) { // Allow normal scroll unless zooming intent is clear or requested
+            e.preventDefault();
+            const centerTime = getCenterTime();
+            const zoomSensitivity = 0.001;
+            const delta = -e.deltaY * zoomSensitivity;
+            
+            const newZoom = Math.min(Math.max(ZOOM + delta, 0.1), 5);
+            
+            if (Math.abs(newZoom - ZOOM) > 0.001) {
+                ZOOM = newZoom;
+                render();
+                scrollToTime(centerTime);
+            }
+        }
+    }, { passive: false });
+
+
+    // --- Tutorial System ---
+    
+    const tutorialSteps = [
+        {
+            target: null,
+            title: "Welcome to Genesis Timeline",
+            text: "Explore the lives of the Patriarchs from Adam to Joseph in this interactive timeline.",
+            position: "center",
+            action: null
+        },
+        {
+            target: null,
+            title: "Navigate History",
+            text: "Drag to pan across centuries. On desktop, scroll your mouse wheel to zoom. On mobile, pinch with two fingers.",
+            position: "center",
+            action: null
+        },
+        {
+            target: "#modal-card",
+            title: "Detailed Info Cards",
+            text: "Tap any bar to see biblical details. We've opened Abraham's card as an example.",
+            position: "top",
+            action: () => openModal('Abraham')
+        },
+        {
+            target: "#filter-group",
+            title: "Filter Groups",
+            text: "Tap these buttons to isolate specific generations like Pre-Flood or the Patriarchs.",
+            position: "bottom",
+            action: () => closeModal()
+        },
+        {
+            target: "#calendar-btn",
+            title: "Switch Calendar",
+            text: "Toggle between Anno Mundi (Years since creation) and Before Christ (BC) dating systems.",
+            position: "bottom",
+            action: null
+        },
+        {
+            target: "#stats-btn",
+            title: "Demographics & Stats",
+            text: "Tap here to view average lifespans and age-of-begetting statistics for Pre and Post-Flood generations.",
+            position: "bottom",
+            action: null
+        }
+    ];
+
+    let currentStep = 0;
+
+    function initTutorial() {
+        if(localStorage.getItem('genesis_tutorial_seen') === 'true') return;
+        setTimeout(() => {
+            document.getElementById('tutorial-backdrop').classList.remove('hidden');
+            showStep(0);
+        }, 800);
+    }
+
+    function restartTutorial() {
+        currentStep = 0;
+        localStorage.removeItem('genesis_tutorial_seen');
+        document.getElementById('tutorial-backdrop').classList.remove('hidden');
+        showStep(0);
+    }
+
+    function showStep(index) {
+        const container = document.getElementById('tutorial-tooltip-container');
+        const oldTooltip = document.getElementById('tutorial-tooltip');
+        if(oldTooltip) oldTooltip.remove();
+        
+        document.querySelectorAll('.tutorial-active-element').forEach(el => el.classList.remove('tutorial-active-element'));
+        document.getElementById('main-header').classList.remove('header-elevated');
+
+        if(index >= tutorialSteps.length) {
+            endTutorial();
+            return;
+        }
+
+        const step = tutorialSteps[index];
+        if(step.action) step.action();
+
+        let top, left, arrowClass;
+        let targetEl = null;
+        
+        setTimeout(() => {
+            if(step.target) {
+                const el = document.querySelector(step.target);
+                if(el) {
+                    targetEl = el;
+                    el.classList.add('tutorial-active-element');
+                    if(el.closest('header')) {
+                        document.getElementById('main-header').classList.add('header-elevated');
+                    }
+                    const rect = el.getBoundingClientRect();
+                    if(step.position === 'bottom') {
+                        top = rect.bottom + 15;
+                        left = rect.left + (rect.width / 2);
+                        arrowClass = 'top';
+                    } else if(step.position === 'top') {
+                        top = rect.top - 15;
+                        left = rect.left + (rect.width / 2);
+                        arrowClass = 'bottom';
+                    }
+                }
+            } else {
+                // Use robust center logic in renderTooltip instead of calculating here
+                top = 0; left = 0; 
+            }
+            renderTooltip(step, top, left, arrowClass, index, container, targetEl);
+        }, 300);
+    }
+
+    function renderTooltip(step, top, left, arrowClass, index, container, targetEl) {
+        const tooltipHtml = `
+            <div id="tutorial-tooltip" class="fixed bg-white text-slate-900 rounded-xl shadow-2xl p-5 w-[280px] max-w-[90vw] animate-fade-in pointer-events-auto ${!step.target ? 'tutorial-center-fixed' : ''}" style="opacity:0;">
+                ${step.target ? `<div class="tooltip-arrow ${arrowClass}" id="tooltip-arrow-el"></div>` : ''}
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="font-bold text-lg">${step.title}</h3>
+                    <button onclick="endTutorial()" class="text-slate-400 hover:text-slate-600">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <p class="text-slate-600 text-sm mb-4 leading-relaxed">${step.text}</p>
+                <div class="flex justify-between items-center">
+                    <div class="flex gap-1">
+                        ${tutorialSteps.map((_, i) => `<div class="w-1.5 h-1.5 rounded-full ${i === index ? 'bg-blue-500' : 'bg-slate-200'}"></div>`).join('')}
+                    </div>
+                    <div class="flex gap-2">
+                         ${index > 0 ? `<button onclick="showStep(${index-1})" class="text-xs font-bold text-slate-500 hover:text-slate-800 px-3 py-1">Prev</button>` : ''}
+                        <button onclick="showStep(${index+1})" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors shadow-sm">
+                            ${index === tutorialSteps.length - 1 ? 'Finish' : 'Next'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.innerHTML = tooltipHtml; 
+        
+        const tooltip = document.getElementById('tutorial-tooltip');
+        
+        if(step.target) {
+            const tRect = tooltip.getBoundingClientRect();
+            
+            let finalTop = top;
+            let finalLeft = left - (tRect.width / 2);
+
+            if(!step.target) {
+                finalTop = top - (tRect.height / 2);
+            } else {
+                if(step.position === 'top') {
+                    finalTop = top - tRect.height;
+                }
+            }
+            
+            // SAFETY CHECK: If top is off-screen (e.g. tall modal opened), clamp it
+            if (finalTop < 20) {
+                finalTop = 20; 
+            }
+            
+            // Edge collision protection for Tooltip Box
+            if(finalLeft < 10) finalLeft = 10;
+            if(finalLeft + tRect.width > window.innerWidth - 10) {
+                finalLeft = window.innerWidth - tRect.width - 10;
+            }
+
+            tooltip.style.top = finalTop + 'px';
+            tooltip.style.left = finalLeft + 'px';
+            
+            // DYNAMIC ARROW POSITIONING
+            if(targetEl) {
+                const arrowEl = document.getElementById('tooltip-arrow-el');
+                const targetRect = targetEl.getBoundingClientRect();
+                const targetCenter = targetRect.left + (targetRect.width / 2);
+                
+                const relativeLeft = targetCenter - finalLeft;
+                const safePadding = 15; 
+                const clampedRelativeLeft = Math.max(safePadding, Math.min(relativeLeft, tRect.width - safePadding));
+
+                arrowEl.style.left = `${clampedRelativeLeft}px`;
+                arrowEl.style.transform = `translateX(-50%)`; 
+            }
+        }
+        
+        // Fade In
+        requestAnimationFrame(() => { tooltip.style.opacity = 1; });
+    }
+
+    function endTutorial() {
+        document.getElementById('tutorial-backdrop').classList.add('hidden');
+        localStorage.setItem('genesis_tutorial_seen', 'true');
+        document.querySelectorAll('.tutorial-active-element').forEach(el => el.classList.remove('tutorial-active-element'));
+        document.getElementById('main-header').classList.remove('header-elevated');
+        const t = document.getElementById('tutorial-tooltip');
+        if(t) t.remove();
+        closeModal(); 
+    }
+
+    render();
+    window.addEventListener('load', initTutorial);
+
+</script>
+</body>
+</html>
